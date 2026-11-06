@@ -1,0 +1,50 @@
+%YAML 1.1
+---
+vars:
+  address-groups:
+    HOME_NET: "[10.77.0.0/24]"
+    EXTERNAL_NET: "!$HOME_NET"
+  port-groups:
+    HTTP_PORTS: "8080"
+
+default-rule-path: /etc/suricata/rules
+rule-files:
+  - lab.rules
+
+outputs:
+  - fast:
+      enabled: yes
+      filename: fast.log
+      append: yes
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      community-id: true
+      types:
+        - alert:
+            payload: no
+            metadata: yes
+        - http
+        - flow
+
+logging:
+  default-log-level: notice
+  outputs:
+    - console:
+        enabled: yes
+        type: json
+
+af-packet:
+  - interface: eth0
+    threads: 1
+    cluster-id: 99
+    cluster-type: cluster_flow
+    defrag: yes
+    use-mmap: yes
+    tpacket-v3: yes
+    disable-promisc: yes
+
+pcap:
+  - interface: eth0
+    promisc: false
