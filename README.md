@@ -7,7 +7,8 @@ Suricata sensor that shares the target's network namespace.
 ## Requirements
 
 - Docker Desktop with Docker Compose
-- Windows PowerShell
+- Windows PowerShell for the PowerShell scripts
+- Bash on Linux or WSL2 for the Bash scripts
 
 ## Start the lab
 
@@ -23,6 +24,23 @@ are assigned in order from `10.77.0.11` through `10.77.0.254`:
 ```powershell
 .\scripts\lab.ps1 up -Count 10
 ```
+
+On Linux or WSL2 with Docker Desktop integration enabled, use the Bash scripts
+for the same lab lifecycle:
+
+```bash
+bash ./scripts/lab.sh up 2
+bash ./scripts/lab.sh status 2
+bash ./scripts/lab.sh test 2
+bash ./scripts/lab.sh up 3
+bash ./scripts/lab.sh up 2
+bash ./scripts/suricata.sh up
+bash ./scripts/suricata.sh test
+```
+
+The Bash scripts use the existing Compose files, Kali image, and isolated
+`cisf-lab-net` network. `lab.sh up N` removes obsolete participant containers
+when scaling down to a smaller count.
 
 Container names are `kali-01`, `kali-02`, and so on. The isolated `cisf-lab-net`
 network uses `10.77.0.0/24`; do not configure another Docker network with an
