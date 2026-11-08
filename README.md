@@ -64,59 +64,74 @@ docker exec -it kali-01 bash
 The test command checks the internal network, assigned IPs, running state, tool
 availability, resource/security settings, and participant-to-participant ping.
 
-## Start Cowrie and Suricata
+## Start the honeypot target
 
-Start the Kali lab first, then start Cowrie and the Suricata sensor:
+Start the Kali lab first, then start the shared Cowrie, OpenCanary, and Suricata
+target:
 
 ```powershell
 .\scripts\suricata.ps1 up
 .\scripts\suricata.ps1 test
 ```
 
-Cowrie uses the shared target address `10.77.0.10`. SSH listens on `2222` and
-Telnet on `2223`; Telnet is enabled explicitly. These ports are available only
-on `cisf-lab-net` and are not published on the Docker host. Suricata shares
-Cowrie's network namespace and captures its `eth0`, so it sees participant
-source addresses rather than a proxy address. The sensor drops all capabilities
-except `NET_RAW`.
+The shared target address is `10.77.0.10`. Cowrie provides SSH on `2222` and
+Telnet on `2223`. Thinkst OpenCanary provides FTP on `21`, HTTP on `80`, and
+MySQL on `3306`. OpenCanary and Suricata share Cowrie's network namespace, so
+the services use the same target IP and Suricata captures participant source
+addresses directly. Services are reachable only over the isolated
+`cisf-lab-net`; no honeypot ports are published on the Docker host.
 
-Cowrie data persists in the named Docker volume `cisf-cowrie-var`; its JSON
+OpenCanary uses Thinkst's maintained 0.9.10 image pinned to its tested digest.
+OpenCanary drops to its configured unprivileged user after starting listeners.
+It receives only `NET_BIND_SERVICE` (to bind FTP and HTTP's privileged ports)
+and `SETUID`/`SETGID` (to drop to that user); all other capabilities are
+dropped. Its configuration is in
+[opencanary/opencanary.conf](./opencanary/opencanary.conf). The Suricata rules
+use SIDs `1000002`/`1000003` for Cowrie SSH/Telnet and
+`1000004`/`1000005`/`1000006` for OpenCanary FTP/HTTP/MySQL, respectively.
+
+Cowrie data persists in the named Docker volume `cisf-cowrie-var`; Cowrie JSON
 session events are stored at `/cowrie/cowrie-git/var/log/cowrie/cowrie.json`.
-Suricata logs persist in `suricata\logs\`. Inspect the logs with:
+OpenCanary's JSON events persist in the named volume
+`cisf-opencanary-logs` at `/var/tmp/opencanary.log`. Its event records use
+`src_host` (and numeric `logtype`), while Cowrie uses `src_ip`. Suricata logs
+persist in `suricata\logs\` on the host. The scripts validate protocol behavior
+and check that events retain both participant source IPs.
+
+Run the end-to-end protocol and logging tests from PowerShell or Linux/WSL:
 
 ```powershell
+.\scripts\suricata.ps1 up
+.\scripts\suricata.ps1 test
 $cowrieLog = Join-Path $env:TEMP 'cisf-cowrie.json'
 docker cp cisf-cowrie:/cowrie/cowrie-git/var/log/cowrie/cowrie.json $cowrieLog
 Get-Content $cowrieLog
+docker exec cisf-opencanary cat /var/tmp/opencanary.log
 Get-Content .\suricata\logs\eve.json -Wait
 Get-Content .\suricata\logs\fast.log -Wait
 ```
 
-The rules in `suricata\rules\lab.rules` separately alert on TCP connection
-attempts to Cowrie's SSH port `2222` (SID `1000002`) and Telnet port `2223`
-(SID `1000003`). The test script connects to both protocols from both Kali
-participants and verifies Cowrie session events and Suricata EVE/fast-log alerts
-for source IPs `10.77.0.11` and `10.77.0.12`.
-
-On Linux or WSL2, use the matching Bash script:
+The Bash equivalent on Linux or WSL2 with Docker Desktop integration enabled is:
 
 ```bash
 bash ./scripts/suricata.sh up
 bash ./scripts/suricata.sh test
 ```
 
-The shared target network namespace can later host OpenCanary on additional
-ports, allowing Cowrie, Suricata, and OpenCanary to use the same target IP
-without publishing service ports on the host.
+The tests originate from Kali-01 (`10.77.0.11`) and Kali-02 (`10.77.0.12`),
+exercise SSH, Telnet, FTP login, an HTTP GET, and a MySQL handshake/login
+attempt, and verify Cowrie, OpenCanary, Suricata EVE, and `fast.log` records.
+OpenCanary's MySQL connect event is logtype `9003`; its login event is
+logtype `8001`.
 
-Stop Cowrie and Suricata with:
+Stop the honeypot overlay with:
 
 ```powershell
 .\scripts\suricata.ps1 down
 ```
 
-This leaves both Kali containers and `cisf-lab-net` intact. The persistent log
-files are excluded from Git.
+This leaves both Kali containers, `cisf-lab-net`, and named log volumes intact.
+The persistent log files are excluded from Git.
 
 ## Stop the lab
 

@@ -1,6 +1,8 @@
 volumes:
   cowrie-var:
     name: cisf-cowrie-var
+  opencanary-logs:
+    name: cisf-opencanary-logs
 
 services:
   cowrie:
@@ -59,6 +61,32 @@ services:
       - ./suricata/suricata.yaml:/etc/suricata/suricata.yaml:ro
       - ./suricata/rules/lab.rules:/etc/suricata/rules/lab.rules:ro
       - ./suricata/logs:/var/log/suricata
+
+  opencanary:
+    image: thinkst/opencanary@sha256:291f43be18a942aac0dcf5ef16148a710d06dd45fccdb5dfda786f8058731cd1
+    container_name: cisf-opencanary
+    network_mode: service:cowrie
+    depends_on:
+      - cowrie
+    init: true
+    read_only: true
+    tmpfs:
+      - /run
+      - /tmp
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 128
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - SETUID
+      - SETGID
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./opencanary/opencanary.conf:/root/.opencanary.conf:ro
+      - opencanary-logs:/var/tmp
 
 networks:
   cisf-lab-net:
