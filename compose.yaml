@@ -1,0 +1,30 @@
+services:
+  kali-template:
+    image: cisf-kali:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - template
+    init: true
+    stdin_open: true
+    tty: true
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 128
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - cisf-lab-net
+
+networks:
+  cisf-lab-net:
+    name: cisf-lab-net
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.77.0.0/24
+          gateway: 10.77.0.1

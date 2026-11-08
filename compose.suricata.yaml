@@ -1,0 +1,62 @@
+services:
+  lab-target:
+    image: python:3.13-alpine
+    container_name: cisf-lab-target
+    command:
+      - python3
+      - -m
+      - http.server
+      - "8080"
+      - --bind
+      - 0.0.0.0
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    cpus: 0.25
+    mem_limit: 128m
+    pids_limit: 64
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      cisf-lab-net:
+        ipv4_address: 10.77.0.10
+
+  suricata:
+    image: jasonish/suricata@sha256:d5a3a1785299ab40918d465e54fedf8e3afeeedba76bb64b0cc74dbc20bda2c3
+    container_name: cisf-suricata
+    network_mode: service:lab-target
+    depends_on:
+      - lab-target
+    command:
+      - -c
+      - /etc/suricata/suricata.yaml
+      - -i
+      - eth0
+      - --set
+      - classification-file=/dev/null
+      - --set
+      - reference-config-file=/dev/null
+      - --set
+      - threshold-file=/dev/null
+    init: true
+    cpus: 0.5
+    mem_limit: 384m
+    pids_limit: 128
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./suricata/suricata.yaml:/etc/suricata/suricata.yaml:ro
+      - ./suricata/rules/lab.rules:/etc/suricata/rules/lab.rules:ro
+      - ./suricata/logs:/var/log/suricata
+
+networks:
+  cisf-lab-net:
+    name: cisf-lab-net
+    external: true

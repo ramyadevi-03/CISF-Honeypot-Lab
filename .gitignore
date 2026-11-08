@@ -1,0 +1,3 @@
+/suricata/logs/*.json
+/suricata/logs/*.log
+/suricata/logs/*.log.*

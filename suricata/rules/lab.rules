@@ -1,0 +1,1 @@
+alert http any any -> $HOME_NET 8080 (msg:"CISF lab HTTP test request"; flow:established,to_server; http.uri; content:"/"; startswith; sid:1000001; rev:1;)
