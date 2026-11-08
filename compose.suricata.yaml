@@ -1,25 +1,29 @@
+volumes:
+  cowrie-var:
+    name: cisf-cowrie-var
+
 services:
-  lab-target:
-    image: python:3.13-alpine
-    container_name: cisf-lab-target
-    command:
-      - python3
-      - -m
-      - http.server
-      - "8080"
-      - --bind
-      - 0.0.0.0
+  cowrie:
+    image: cowrie/cowrie:latest
+    container_name: cisf-cowrie
+    environment:
+      COWRIE_TELNET_ENABLED: "yes"
+    expose:
+      - "2222"
+      - "2223"
     init: true
     read_only: true
     tmpfs:
       - /tmp
-    cpus: 0.25
-    mem_limit: 128m
-    pids_limit: 64
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 128
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges:true
+    volumes:
+      - cowrie-var:/cowrie/cowrie-git/var
     networks:
       cisf-lab-net:
         ipv4_address: 10.77.0.10
@@ -27,9 +31,9 @@ services:
   suricata:
     image: jasonish/suricata@sha256:d5a3a1785299ab40918d465e54fedf8e3afeeedba76bb64b0cc74dbc20bda2c3
     container_name: cisf-suricata
-    network_mode: service:lab-target
+    network_mode: service:cowrie
     depends_on:
-      - lab-target
+      - cowrie
     command:
       - -c
       - /etc/suricata/suricata.yaml
