@@ -1,8 +1,9 @@
 # CISF-Honeypot-Lab
 
 The lab uses isolated, Dockerized Kali participants on the internal
-`cisf-lab-net` bridge. The Phase 2 overlay adds a temporary HTTP target and a
-Suricata sensor that shares the target's network namespace.
+`cisf-lab-net` bridge. The honeypot overlay places Cowrie and Suricata on the
+isolated network. Suricata shares Cowrie's network namespace to retain
+participant source IPs.
 
 ## Requirements
 
@@ -63,33 +64,52 @@ docker exec -it kali-01 bash
 The test command checks the internal network, assigned IPs, running state, tool
 availability, resource/security settings, and participant-to-participant ping.
 
-## Start the Suricata sensor
+## Start Cowrie and Suricata
 
-Start the Kali lab first, then start the separate target and sensor project:
+Start the Kali lab first, then start Cowrie and the Suricata sensor:
 
 ```powershell
 .\scripts\suricata.ps1 up
 .\scripts\suricata.ps1 test
 ```
 
-The temporary Python HTTP target is `10.77.0.10:8080`. Suricata shares its
-network namespace and captures its `eth0`; the Kali containers and their existing
-network/security settings are unchanged. The sensor drops all capabilities
-except `NET_RAW`, and only the target's traffic is visible to this sensor.
+Cowrie uses the shared target address `10.77.0.10`. SSH listens on `2222` and
+Telnet on `2223`; Telnet is enabled explicitly. These ports are available only
+on `cisf-lab-net` and are not published on the Docker host. Suricata shares
+Cowrie's network namespace and captures its `eth0`, so it sees participant
+source addresses rather than a proxy address. The sensor drops all capabilities
+except `NET_RAW`.
 
-Logs persist on the host in `suricata\logs\`. Inspect them manually:
+Cowrie data persists in the named Docker volume `cisf-cowrie-var`; its JSON
+session events are stored at `/cowrie/cowrie-git/var/log/cowrie/cowrie.json`.
+Suricata logs persist in `suricata\logs\`. Inspect the logs with:
 
 ```powershell
+$cowrieLog = Join-Path $env:TEMP 'cisf-cowrie.json'
+docker cp cisf-cowrie:/cowrie/cowrie-git/var/log/cowrie/cowrie.json $cowrieLog
+Get-Content $cowrieLog
 Get-Content .\suricata\logs\eve.json -Wait
 Get-Content .\suricata\logs\fast.log -Wait
 ```
 
-The local rule in `suricata\rules\lab.rules` alerts on HTTP GET requests to the
-target's root path on port 8080. The test script issues uniquely tagged requests
-from both Kali containers and checks EVE HTTP events, SID `1000001` alerts, and
-fast-log entries.
+The rules in `suricata\rules\lab.rules` separately alert on TCP connection
+attempts to Cowrie's SSH port `2222` (SID `1000002`) and Telnet port `2223`
+(SID `1000003`). The test script connects to both protocols from both Kali
+participants and verifies Cowrie session events and Suricata EVE/fast-log alerts
+for source IPs `10.77.0.11` and `10.77.0.12`.
 
-Stop only the temporary target and sensor with:
+On Linux or WSL2, use the matching Bash script:
+
+```bash
+bash ./scripts/suricata.sh up
+bash ./scripts/suricata.sh test
+```
+
+The shared target network namespace can later host OpenCanary on additional
+ports, allowing Cowrie, Suricata, and OpenCanary to use the same target IP
+without publishing service ports on the host.
+
+Stop Cowrie and Suricata with:
 
 ```powershell
 .\scripts\suricata.ps1 down

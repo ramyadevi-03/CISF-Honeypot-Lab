@@ -4,8 +4,6 @@ vars:
   address-groups:
     HOME_NET: "[10.77.0.0/24]"
     EXTERNAL_NET: "!$HOME_NET"
-  port-groups:
-    HTTP_PORTS: "8080"
 
 default-rule-path: /etc/suricata/rules
 rule-files:
@@ -25,7 +23,6 @@ outputs:
         - alert:
             payload: no
             metadata: yes
-        - http
         - flow
 
 logging:
