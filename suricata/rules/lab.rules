@@ -1,2 +1,5 @@
 alert tcp any any -> $HOME_NET 2222 (msg:"CISF Cowrie SSH connection"; flow:to_server,stateless; flags:S; sid:1000002; rev:1;)
 alert tcp any any -> $HOME_NET 2223 (msg:"CISF Cowrie Telnet connection"; flow:to_server,stateless; flags:S; sid:1000003; rev:1;)
+alert tcp any any -> $HOME_NET 21 (msg:"CISF OpenCanary FTP login"; flow:established,to_server; content:"USER "; nocase; sid:1000004; rev:1;)
+alert http any any -> $HOME_NET 80 (msg:"CISF OpenCanary HTTP GET"; flow:established,to_server; http.method; content:"GET"; sid:1000005; rev:1;)
+alert tcp any any -> $HOME_NET 3306 (msg:"CISF OpenCanary MySQL login"; flow:established,to_server; dsize:>0; sid:1000006; rev:1;)
