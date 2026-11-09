@@ -1,9 +1,11 @@
 # CISF-Honeypot-Lab
 
-The lab uses isolated, Dockerized Kali participants on the internal
-`cisf-lab-net` bridge. The honeypot overlay places Cowrie and Suricata on the
-isolated network. Suricata shares Cowrie's network namespace to retain
-participant source IPs.
+The lab uses Dockerized Kali participants on the internal `cisf-lab-net`
+bridge. This isolates the lab network from external networks, but does not
+isolate Kali participants from one another; the current bridge permits
+participant-to-participant connectivity. The honeypot overlay places Cowrie
+and Suricata on this network. Suricata shares Cowrie's network namespace to
+retain participant source IPs.
 
 ## Requirements
 
@@ -39,7 +41,7 @@ bash ./scripts/suricata.sh up
 bash ./scripts/suricata.sh test
 ```
 
-The Bash scripts use the existing Compose files, Kali image, and isolated
+The Bash scripts use the existing Compose files, Kali image, and internal
 `cisf-lab-net` network. `lab.sh up N` removes obsolete participant containers
 when scaling down to a smaller count.
 
