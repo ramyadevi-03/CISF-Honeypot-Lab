@@ -2,12 +2,18 @@
 set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-if [[ $# -ne 1 ]]; then
-    echo "Usage: $0 <exercise-start-utc>" >&2
+if [[ $# -lt 1 || $# -gt 3 ]]; then
+    echo "Usage: $0 <exercise-start-utc> [exercise-end-utc-exclusive] [destination-filename]" >&2
     echo "Example: $0 2026-11-08T16:31:59Z" >&2
     exit 2
 fi
 EXERCISE_START_UTC="$1"
+EXERCISE_END_UTC="${2:-}"
+OUTPUT_FILENAME="${3:-lab5-evidence.tsv}"
+if [[ ! "$OUTPUT_FILENAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    echo "Destination filename must be a simple filename without a path." >&2
+    exit 2
+fi
 IFS=':' read -ra PATH_SEGMENTS <<< "$PATH"
 new_path=""
 for segment in "${PATH_SEGMENTS[@]}"; do
@@ -57,14 +63,35 @@ fi
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-if ! "$DOCKER_BIN" ps --format '{{.Names}}' | grep -qx 'kali-01'; then
-    echo "Kali-01 is not running. Start the lab first." >&2
+mapfile -t PARTICIPANTS < <(
+    "$DOCKER_BIN" ps --filter network=cisf-lab-net --format '{{.Names}}' |
+        grep -E '^kali-[0-9]+$' |
+        sort -V
+)
+if [[ ${#PARTICIPANTS[@]} -eq 0 ]]; then
+    echo "No running Kali participants found on cisf-lab-net." >&2
     exit 1
 fi
-if ! "$DOCKER_BIN" ps --format '{{.Names}}' | grep -qx 'kali-02'; then
-    echo "Kali-02 is not running. Start the lab first." >&2
-    exit 1
-fi
+
+declare -a PARTICIPANT_IPS=()
+for container_name in "${PARTICIPANTS[@]}"; do
+    participant_ip=$("$DOCKER_BIN" inspect --format \
+        '{{with index .NetworkSettings.Networks "cisf-lab-net"}}{{.IPAddress}}{{end}}' \
+        "$container_name")
+    if [[ -z "$participant_ip" ]]; then
+        echo "${container_name} is not attached to cisf-lab-net." >&2
+        exit 1
+    fi
+    PARTICIPANT_IPS+=("$participant_ip")
+done
+
+DESTINATION_PATH="/tmp/${OUTPUT_FILENAME}"
+for container_name in "${PARTICIPANTS[@]}"; do
+    if "$DOCKER_BIN" exec "$container_name" test -e "$DESTINATION_PATH"; then
+        echo "Refusing to overwrite existing ${container_name}:${DESTINATION_PATH}." >&2
+        exit 1
+    fi
+done
 export DOCKER_BIN
 
 export_participant() {
@@ -72,7 +99,8 @@ export_participant() {
     local container_name="$2"
     local host_file="$TMP_DIR/${container_name}.tsv"
 
-    "$PYTHON_BIN" - "$src_ip" "$host_file" "$ROOT_DIR" "$EXERCISE_START_UTC" <<'PY'
+    "$PYTHON_BIN" - "$src_ip" "$host_file" "$ROOT_DIR" \
+        "$EXERCISE_START_UTC" "$EXERCISE_END_UTC" <<'PY'
 import csv
 from datetime import datetime, timezone
 import json
@@ -85,6 +113,7 @@ src_ip = sys.argv[1]
 out_path = sys.argv[2]
 root_dir = Path(sys.argv[3])
 exercise_start_utc = sys.argv[4]
+exercise_end_utc = sys.argv[5]
 docker_bin = os.environ.get('DOCKER_BIN', 'docker')
 target_ip = '10.77.0.10'
 service_by_port = {
@@ -116,6 +145,9 @@ def normalized_timestamp(value):
     return parsed.astimezone(timezone.utc).isoformat(timespec='microseconds').replace('+00:00', 'Z')
 
 since_timestamp = normalized_timestamp(exercise_start_utc)
+until_timestamp = normalized_timestamp(exercise_end_utc) if exercise_end_utc else ''
+if until_timestamp and until_timestamp <= since_timestamp:
+    raise SystemExit('Exercise end timestamp must be later than its start timestamp.')
 
 def safe_cell(value):
     if value is None:
@@ -246,7 +278,11 @@ for obj in read_json_lines(proc.stdout):
     ))
 
 rows = eve_rows + open_rows + log_rows
-rows = [row for row in rows if row['timestamp'] and row['timestamp'] >= since_timestamp]
+rows = [
+    row for row in rows
+    if row['timestamp'] and row['timestamp'] >= since_timestamp
+    and (not until_timestamp or row['timestamp'] < until_timestamp)
+]
 rows.sort(key=lambda row: row['timestamp'])
 
 with open(out_path, 'w', encoding='utf-8', newline='') as fh:
@@ -258,9 +294,10 @@ with open(out_path, 'w', encoding='utf-8', newline='') as fh:
         writer.writerow([safe_cell(row.get(column, '')) for column in columns])
 PY
 
-    "$DOCKER_BIN" cp "$host_file" "${container_name}:/tmp/lab5-evidence.tsv"
-    echo "Exported sanitized evidence for ${src_ip} into ${container_name}:/tmp/lab5-evidence.tsv"
+    "$DOCKER_BIN" cp "$host_file" "${container_name}:${DESTINATION_PATH}"
+    echo "Exported sanitized evidence for ${src_ip} into ${container_name}:${DESTINATION_PATH}"
 }
 
-export_participant '10.77.0.11' 'kali-01'
-export_participant '10.77.0.12' 'kali-02'
+for index in "${!PARTICIPANTS[@]}"; do
+    export_participant "${PARTICIPANT_IPS[$index]}" "${PARTICIPANTS[$index]}"
+done

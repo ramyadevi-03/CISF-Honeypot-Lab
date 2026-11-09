@@ -83,6 +83,11 @@ Verbose FTP output can contain protocol commands and credentials. Do not
 collect or share the raw transcript. Provide only sanitized, participant-IP
 filtered logs.
 
+For instructor-run PTY automation, the installed util-linux `script` supports
+`-e`/`--return`, which propagates curl's exit status; without it, `script` may
+report its own status instead. Keep the captured transcript private and display
+only the server's `220`, `331`, and `530` response lines.
+
 ## Verified OpenCanary event format
 
 OpenCanary logs to `/var/tmp/opencanary.log` inside `cisf-opencanary`. The

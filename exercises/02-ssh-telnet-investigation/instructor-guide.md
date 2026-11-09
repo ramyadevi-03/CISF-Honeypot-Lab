@@ -223,6 +223,14 @@ sharing it. Never share complete EVE/fast logs or raw Cowrie JSON.
 - **Telnet client unavailable:** Use `curl telnet://10.77.0.10:2223`. The
   tested Kali image has no `telnet` command but its curl supports Telnet. Do
   not install packages in the participant container.
+- **curl remains active after `exit`:** In a controlled Kali-01 validation,
+  Cowrie recorded `cowrie.login.success` and `cowrie.session.closed`, but the
+  curl Telnet client remained active. After confirming the Cowrie session is
+  closed, press Ctrl-C once to terminate the local client. This is a client
+  shutdown issue, not evidence that authentication failed; do not retry the
+  login. In this test, curl's `--max-time` did not stop the interactive
+  session, so automation must impose an external timeout and treat Cowrie's
+  explicit event as the authentication evidence.
 - **Cowrie event absent:** Confirm the relevant container is running, the
   participant entered one dummy login, and the chosen source IP is correct.
   Allow up to 30 seconds for logs to appear. Do not encourage repeated

@@ -11,23 +11,19 @@ No grading automation is used. The lab is intentionally manual and evidence-driv
 From Ubuntu/WSL with Docker Desktop integration:
 
 ```bash
-bash ./scripts/lab.sh up 2
-bash ./scripts/lab.sh test 2
-bash ./scripts/suricata.sh up
+bash ./scripts/lab.sh status
 bash ./scripts/suricata.sh status
 ```
 
-Verify the participant addresses:
+If participants need provisioning, start the required count before the exercise (for example, `bash ./scripts/lab.sh up 5`). The exporter discovers every running `kali-NN` container attached to `cisf-lab-net` and uses its actual network IP.
+
+Review participant names and addresses:
 
 ```bash
-docker exec kali-01 bash -lc 'ip -4 -o addr show dev eth0'
-docker exec kali-02 bash -lc 'ip -4 -o addr show dev eth0'
+for container in $(docker ps --filter network=cisf-lab-net --format '{{.Names}}' | grep -E '^kali-[0-9]+$' | sort -V); do
+  docker inspect --format '{{.Name}} {{with index .NetworkSettings.Networks "cisf-lab-net"}}{{.IPAddress}}{{end}}' "$container"
+done
 ```
-
-Expected source IPs:
-
-- Kali-01: `10.77.0.11`
-- Kali-02: `10.77.0.12`
 
 The shared target remains `10.77.0.10`.
 
@@ -40,7 +36,7 @@ exercise_start_utc="$(docker exec kali-01 date -u +%Y-%m-%dT%H:%M:%SZ)"
 printf 'Exercise start (UTC): %s\n' "$exercise_start_utc"
 ```
 
-Run each command once from `kali-01` and once from `kali-02`. All destinations are the isolated target `10.77.0.10`. The test interactions use no destructive actions and only the single dummy FTP/MySQL authentication attempt shown.
+Run each command once from each provisioned participant container. Replace `kali-01` in the examples with the participant container name. All destinations are the isolated target `10.77.0.10`. The test interactions use no destructive actions and only the single dummy FTP/MySQL authentication attempt shown.
 
 ### SSH — port 2222
 
@@ -95,7 +91,7 @@ BASH
 
 The handshake and response bytes confirm protocol exchange only. OpenCanary's logtype `8001` records an authentication attempt; it does not prove a successful database login.
 
-For Kali-02, replace `kali-01` with `kali-02` in each command. Allow a few seconds after the final interaction for Suricata EVE records to be written.
+Allow a few seconds after the final interaction for Suricata EVE records to be written.
 
 ## Export sanitized evidence for participants
 
@@ -107,22 +103,20 @@ bash ./scripts/export-lab5-evidence.sh "$exercise_start_utc"
 
 This creates a sanitized TSV for each participant and copies it into the matching Kali container at `/tmp/lab5-evidence.tsv`.
 
-The exporter filters on exact participant source IP, destination IP, service port, and the exercise start time. It exports only approved fields, normalizes timestamps to UTC with a `Z` suffix, removes tabs/newlines from field values, and does not read or export password, message, or raw authentication fields.
+The exporter discovers running names matching `kali-NN` on `cisf-lab-net`, sorts them numerically, and reads each container's actual IP from that network. It filters on that exact source IP, the target IP, service port, and the exercise time window. It exports only approved fields, normalizes timestamps to UTC with a `Z` suffix, removes tabs/newlines from field values, and does not read or export password, message, or raw authentication fields.
 
-Expected output:
-
-```text
-Exported sanitized evidence for 10.77.0.11 into kali-01:/tmp/lab5-evidence.tsv
-Exported sanitized evidence for 10.77.0.12 into kali-02:/tmp/lab5-evidence.tsv
-```
-
-Verify each export from the instructor host:
+The optional second argument is an exclusive end timestamp; the optional third argument selects a destination filename. Existing destination files are never overwritten. For example, a bounded validation export can use:
 
 ```bash
-for spec in "kali-01 10.77.0.11" "kali-02 10.77.0.12"; do
-  set -- $spec
-  container=$1
-  participant_ip=$2
+bash ./scripts/export-lab5-evidence.sh \
+  "$exercise_start_utc" "2026-11-09T14:13:19Z" "lab5-evidence-phase3b.tsv"
+```
+
+Verify each discovered export from the instructor host:
+
+```bash
+for container in $(docker ps --filter network=cisf-lab-net --format '{{.Names}}' | grep -E '^kali-[0-9]+$' | sort -V); do
+  participant_ip=$(docker inspect --format '{{with index .NetworkSettings.Networks "cisf-lab-net"}}{{.IPAddress}}{{end}}' "$container")
   docker exec "$container" test -s /tmp/lab5-evidence.tsv
   docker exec "$container" awk -F '\t' -v ip="$participant_ip" 'NR > 1 && $6 != ip {bad=1} END {if (bad) exit 1; print "participant source filter: PASS"}' /tmp/lab5-evidence.tsv
   docker exec "$container" awk -F '\t' 'NR > 1 && NF != 16 {bad=1} END {if (bad) exit 1; print "16-column TSV: PASS"}' /tmp/lab5-evidence.tsv
@@ -161,11 +155,11 @@ The exporter preserves only safe fields and deliberately strips password content
 
 The TSV maps those sources to its fixed 16-column schema. Cowrie authentication outcomes are populated only for explicit `cowrie.login.success` or `cowrie.login.failed` event IDs. Session connect/close events remain connection/disconnection records; they do not imply authentication. OpenCanary logtype `8001` is classified as an authentication attempt, not a successful login. `PASSWORD` and all unallowlisted fields are omitted.
 
-The fresh test used an SSH handshake without credentials, so it produced Cowrie session events but no authentication outcome. A separate existing Cowrie record for `10.77.0.11` at `2026-11-08T12:58:24Z` had event ID `cowrie.login.success`; the exporter mapped that explicit event to `authentication-success` and retained its session and username without exporting password or message fields.
+The documented Lab 5 SSH probe uses no credentials and should produce session events without an authentication outcome. The Phase 2C validation export used the earlier Phase 2A window start (`2026-11-09T07:32:40Z`), so it also includes prior Cowrie `cowrie.login.success` events for both Kali participants. The exporter maps only these explicit event IDs to authentication outcomes and excludes password and message fields.
 
 ## Investigation answer key
 
-Use this answer key only after participants have completed the exercise. The run below was generated on 2026-11-08; new runs will have different timestamps, sessions, and source ports.
+Use this answer key only after participants have completed the exercise. These counts and examples describe the Phase 2C validation export beginning at `2026-11-09T07:32:40Z`; new export windows will have different timestamps, sessions, source ports, and possibly authentication outcomes.
 
 ### 1. Which alerts are associated with the participant?
 
@@ -196,21 +190,22 @@ The exported records showed all five destination ports for both Kali IPs: `2222`
 All TSV timestamps were normalized to timezone-aware UTC with a `Z` suffix. Suricata and application rows shared the same source IP, source port, destination IP, and destination port for each observed service. Example source ports:
 
 | Service | Kali-01 `10.77.0.11` | Kali-02 `10.77.0.12` |
-|---|---:|---:|
-| SSH | 34550 | 51984 |
-| Telnet | 46764 | 49826 |
-| FTP | 47508 | 47716 |
-| HTTP (`/index.html`) | 47324 | 32932 |
-| MySQL | 59496 | 49412 |
+|---|---|---|
+| SSH | 36836, 53218, 58210 | 32884, 56296, 58626 |
+| Telnet | 40890, 58230 | 44120, 48224 |
+| FTP | 37426 | 38482 |
+| HTTP | 47388 | 55490 |
+| MySQL authentication | 59610 | 34372 |
 
-For example, Kali-01's MySQL activity at approximately `2026-11-08T16:32:02.735Z` used source port `59496`; the OpenCanary `9003` and `8001` events and the SID `1000006` alerts shared that tuple. Kali-02's corresponding source port was `49412`.
+For each listed source port, the Suricata alert and matching Cowrie/OpenCanary event rows share the participant IP, destination IP, and service port. Each export also contains one additional OpenCanary MySQL connection-only event: source port `54922` for Kali-01 and `39120` for Kali-02. Those rows have no matching SID `1000006` or authentication event and should be treated only as connections.
 
-The export contained, per participant, 1 SSH, 1 Telnet, and 1 FTP Suricata alert; 3 HTTP and 3 MySQL alert rows; 4 Cowrie SSH, 2 Cowrie Telnet, 2 OpenCanary FTP, 1 OpenCanary HTTP, and 2 OpenCanary MySQL rows. Repeated sensor alerts can represent multiple matching packets/requests in a connection; they are not necessarily separate logins. The three HTTP alerts include activity from the redirect-following HTTP request made after the initial service test.
+Each participant export contained 46 records: 9 Suricata alerts (3 SSH, 2 Telnet, 1 FTP, 2 HTTP, and 1 MySQL), 31 Cowrie events (16 SSH and 15 Telnet), and 6 OpenCanary events (2 FTP, 1 HTTP, and 3 MySQL). Repeated Suricata alerts can represent multiple matching requests in a connection; they are not necessarily separate logins. In this export the two HTTP alerts match the root request and its redirected GET.
 
 ### 5. Which events prove success and which do not?
 
 - A TCP connection attempt does not prove login success.
-- The tested SSH command deliberately performed no password authentication; Cowrie recorded a session, not a login outcome.
+- The Phase 2A records in this evidence window include explicit Cowrie `cowrie.login.success` events for both participants: SSH source ports `58210` (Kali-01) and `32884` (Kali-02), and Telnet source ports `40890` (Kali-01) and `48224` (Kali-02). These explicit event IDs support the `authentication-success` outcome; other Cowrie session events alone do not.
+- The documented Lab 5 SSH probe intentionally performs no authentication; its connection/session events must not be interpreted as a login outcome.
 - The FTP server replied `530 Sorry, Authentication failed.` to the instructor's harmless dummy attempt, while the sanitized OpenCanary event records an authentication attempt but not the raw reply.
 - The MySQL `8001` row indicates an authentication attempt and records a username; it is not proof of a successful database login.
 - Suricata alerts identify matching network traffic and do not establish credential success.
