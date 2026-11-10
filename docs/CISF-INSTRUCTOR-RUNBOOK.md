@@ -30,6 +30,8 @@ Suricata logs are stored under `suricata/logs/` in the repository.
 Lab 5 evidence is generated separately for each discovered Kali participant.
 The exporter filters events by that participant's actual source IP and writes
 only an allowlisted, sanitized TSV to that participant's container.
+The workshop contains six labs; Lab 6 provides one combined, sanitized
+multi-participant dataset for forensic investigation.
 
 ## 2. Prerequisites
 
@@ -143,7 +145,7 @@ not published for direct host access.
 desktops or participant browser access have not been implemented.** The HTTP
 honeypot is a lab service, not a participant web portal.
 
-## 5. Conducting Labs 1–5
+## 5. Conducting Labs 1–6
 
 Have participants follow the linked exercise instructions. The summaries
 below identify the validated scope and the evidence instructors should check;
@@ -253,6 +255,22 @@ they do not replace the detailed participant steps.
   events. Do not provide raw logs to fill gaps. See the [Lab 5 participant exercise](../exercises/05-suricata-alert-analysis/participant-exercise.md)
   and [Lab 5 instructor guide](../exercises/05-suricata-alert-analysis/instructor-guide.md).
 
+### Lab 6 — Mixed-log forensic investigation
+
+- **Objective/actions:** Participants use a combined sanitized evidence file
+  to attribute activity by source IP, distinguish discovery, connections, and
+  authentication attempts, and reconstruct the timeline across five roles.
+- **Expected observations:** The 16-column TSV combines Suricata, Cowrie, and
+  OpenCanary records from the selected window. Evidence supports the distinct
+  role assignments only when live events show those activity patterns.
+- **Instructor verification:** Follow the [Lab 6 instructor guide](../exercises/06-mixed-log-forensic-investigation/instructor-guide.md),
+  retain the separate answer key, verify filtering and chronology, and
+  correlate source ports and endpoint tuples. Cowrie login outcomes are
+  emulated; connection records alone do not prove authentication.
+- **Common errors:** Historical multi-service activity may not distinguish
+  the planned roles. Do not fabricate missing records or infer the planned
+  source-to-role mapping without verification. See the [Lab 6 participant exercise](../exercises/06-mixed-log-forensic-investigation/participant-exercise.md).
+
 ## 6. Evidence distribution
 
 Run the exporter from Ubuntu/WSL at the repository root after the activity and
@@ -334,6 +352,20 @@ activity and time window. An export can be structurally valid but have no
 events if the time window does not cover activity. Participants may view only
 the file in their own Kali container; they must not access the raw logs or
 another participant's export.
+
+Lab 6 uses a separate exporter that sends the same combined evidence to every
+eligible participant. Use a new destination filename for each validation:
+
+```bash
+bash ./scripts/export-mixed-lab-evidence.sh \
+  "$exercise_start_utc" "$exercise_end_utc" "lab6-mixed-evidence.tsv"
+```
+
+The file is `/tmp/lab6-mixed-evidence.tsv` in each discovered Kali container.
+The exporter retains source IPs for investigation but omits participant names
+and role assignments. It applies the same time-window, timestamp, schema,
+sanitization, and no-overwrite safeguards; keep the answer key separate from
+the distributed dataset.
 
 ## 7. Troubleshooting
 

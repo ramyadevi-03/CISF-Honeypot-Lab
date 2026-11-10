@@ -140,3 +140,14 @@ The persistent log files are excluded from Git.
 ```powershell
 .\scripts\lab.ps1 down
 ```
+
+## Workshop exercises
+
+The workshop contains six exercises:
+
+1. [Network reconnaissance](./exercises/01-network-reconnaissance/participant-exercise.md)
+2. [SSH and Telnet investigation](./exercises/02-ssh-telnet-investigation/participant-exercise.md)
+3. [FTP investigation](./exercises/03-ftp-investigation/participant-exercise.md)
+4. [HTTP and MySQL investigation](./exercises/04-http-mysql-investigation/participant-exercise.md)
+5. [Suricata alert analysis](./exercises/05-suricata-alert-analysis/participant-exercise.md)
+6. [Mixed-log forensic investigation](./exercises/06-mixed-log-forensic-investigation/participant-exercise.md)
