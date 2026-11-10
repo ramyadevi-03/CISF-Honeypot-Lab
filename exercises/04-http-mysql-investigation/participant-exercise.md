@@ -69,64 +69,25 @@ code as an authentication result.
 
 ### 3. Make one dummy MySQL authentication attempt
 
-The supplied Kali image has no MySQL command-line client. Perl and its
-`IO::Socket::INET` module are already installed. Use this small, one-shot
-protocol client to read the server greeting, send one MySQL authentication
-packet for dummy user `cisf-user` with dummy password `wrong`, and check the
-server's response. It connects only to the lab target and performs no SQL:
+The supplied Kali image has no MySQL command-line client. The instructor will
+stage a one-shot Perl client in your assigned container. Run:
 
 ```bash
-perl -MIO::Socket::INET -e '
-use strict;
-use warnings;
-my $socket = IO::Socket::INET->new(
-    PeerAddr => "10.77.0.10", PeerPort => 3306, Proto => "tcp", Timeout => 5
-) or die "connect failed: $!\n";
-$socket->autoflush(1);
-sub read_exact {
-    my ($sock, $length) = @_;
-    my $data = "";
-    while (length($data) < $length) {
-        my $read = sysread($sock, my $chunk, $length - length($data));
-        die "connection closed while reading packet\n"
-            unless defined($read) && $read > 0;
-        $data .= $chunk;
-    }
-    return $data;
-}
-sub write_all {
-    my ($sock, $data) = @_;
-    while (length($data)) {
-        my $written = syswrite($sock, $data);
-        die "write failed: $!\n" unless defined($written) && $written > 0;
-        substr($data, 0, $written, "");
-    }
-}
-my $greeting_header = read_exact($socket, 4);
-my $greeting_length = unpack("V", substr($greeting_header, 0, 3) . "\0");
-my $greeting = read_exact($socket, $greeting_length);
-die "unexpected MySQL greeting\n"
-    unless length($greeting) && ord(substr($greeting, 0, 1)) == 10;
-print "MySQL server greeting received (protocol v10).\n";
-my $payload = pack("V", 0xA285) . pack("V", 0) . pack("C", 33)
-    . ("\0" x 23) . "cisf-user\0" . pack("C", 5) . "wrong";
-my $packet = substr(pack("V", length($payload)), 0, 3)
-    . pack("C", 1) . $payload;
-write_all($socket, $packet);
-my $response_header = read_exact($socket, 4);
-my $response_length = unpack("V", substr($response_header, 0, 3) . "\0");
-my $response = read_exact($socket, $response_length);
-die "unexpected MySQL authentication response\n"
-    unless ord(substr($response, 0, 1)) == 255;
-my $error_code = unpack("v", substr($response, 1, 2));
-die "unexpected MySQL error code $error_code\n" unless $error_code == 1045;
-print "Dummy authentication rejected (MySQL error 1045, access denied); no login established.\n";
-'
+perl /tmp/cisf-mysql-login.pl
 ```
 
-This confirms the server greeting and the rejected dummy authentication
-response. It is not a successful login and does not issue SQL. Do not change
-the target, username, password, or packet into a repeated-attempt tool.
+The helper uses Perl's installed core socket module, connects only to
+`10.77.0.10:3306`, sends one authentication packet for dummy user
+`cisf-user` and dummy password `wrong`, verifies the server's response, and
+issues no SQL. Expected output:
+
+```text
+Dummy MySQL authentication rejected (error 1045, access denied); no login established.
+```
+
+Do not change the target or dummy credentials, or repeat the attempt. The
+instructor stages the helper before the exercise; do not install packages or
+use Docker yourself.
 
 ### 4. Review your assigned evidence
 
@@ -191,9 +152,9 @@ Use your command output and only your assigned filtered evidence:
   assignment.
 - **HTTP error or no response:** Confirm the target and use the exact root URL.
   Following the redirect is expected. Do not probe other hosts or paths.
-- **MySQL client unavailable:** This is expected. Use the preinstalled Perl
-  protocol command above; do not install packages or use a general-purpose
-  database client against other targets.
+- **MySQL helper missing:** Stop and ask the instructor to stage
+  `mysql-login.pl` into your assigned container. Do not install packages or
+  use another client or target.
 - **MySQL error 1045:** This is the expected rejection of the dummy login; no
   database login succeeded. Do not retry.
 - **Unexpected MySQL response:** Stop and ask the instructor to review the
