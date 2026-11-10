@@ -60,25 +60,40 @@ Run the participants' steps in order. Their source addresses should be
 
 ## Expected SSH and Telnet behavior
 
+Before opening participant terminals, stage the tested Telnet helper into
+each assigned Kali container. For the default two participants:
+
+```bash
+for container in kali-01 kali-02; do
+  docker cp ./exercises/02-ssh-telnet-investigation/telnet-login.pl \
+    "$container:/tmp/cisf-telnet-login.pl"
+done
+```
+
+For another assignment, replace the container names with the participants'
+actual Kali containers. Participants run only the staged script; they do not
+need Docker access.
+
 SSH command:
 
 ```bash
 ssh -p 2222 cisf-ssh-lab@10.77.0.10
 ```
 
-Telnet command (the current Kali image has no `telnet` executable; tested
-`curl` includes Telnet support):
+Telnet command (the client handles Telnet negotiation and closes after one
+dummy attempt):
 
 ```bash
-curl telnet://10.77.0.10:2223
+perl /tmp/cisf-telnet-login.pl
 ```
 
-For each service, participants should make one attempt using the documented
-dummy username and password. They should exit a simulated Cowrie shell with
-`exit`, then stop. In this tested Cowrie configuration, both dummy login
-attempts generated `cowrie.login.success`. This means Cowrie accepted the
-attempt for its emulated session; it does not mean a real host account was
-authenticated.
+The helper uses Perl's core `IO::Socket::INET` and `IO::Select` modules, sends
+the fixed dummy username and password once after the corresponding prompts,
+and closes the connection. It prints a clear timeout or connection error if
+the expected prompts do not arrive. In this tested Cowrie configuration, both
+dummy SSH and Telnet login attempts generated `cowrie.login.success`. This
+means Cowrie accepted the attempt for its emulated session; it does not mean
+a real host account was authenticated.
 
 The observed login event ID is `cowrie.login.success`. Its `timestamp`,
 `session`, `protocol`, `src_ip`, `src_port`, `dst_ip`, `dst_port`, and
@@ -220,17 +235,13 @@ sharing it. Never share complete EVE/fast logs or raw Cowrie JSON.
 - **SSH key warning or connect error:** Confirm the exact target and port.
   Investigate unexpected host-key changes with the lab operator; do not
   disable host-key checks.
-- **Telnet client unavailable:** Use `curl telnet://10.77.0.10:2223`. The
-  tested Kali image has no `telnet` command but its curl supports Telnet. Do
-  not install packages in the participant container.
-- **curl remains active after `exit`:** In a controlled Kali-01 validation,
-  Cowrie recorded `cowrie.login.success` and `cowrie.session.closed`, but the
-  curl Telnet client remained active. After confirming the Cowrie session is
-  closed, press Ctrl-C once to terminate the local client. This is a client
-  shutdown issue, not evidence that authentication failed; do not retry the
-  login. In this test, curl's `--max-time` did not stop the interactive
-  session, so automation must impose an external timeout and treat Cowrie's
-  explicit event as the authentication evidence.
+- **Telnet helper missing:** Stage `telnet-login.pl` with the `docker cp`
+  command above. Do not ask participants to install packages or use curl's
+  interactive Telnet mode; that client may remain open after Cowrie closes
+  the session.
+- **Telnet prompt timeout:** Check that Cowrie is running and reachable at
+  `10.77.0.10:2223`. Inspect only sanitized event metadata before deciding
+  whether any further attempt is appropriate.
 - **Cowrie event absent:** Confirm the relevant container is running, the
   participant entered one dummy login, and the chosen source IP is correct.
   Allow up to 30 seconds for logs to appear. Do not encourage repeated

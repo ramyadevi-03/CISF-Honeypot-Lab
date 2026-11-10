@@ -177,8 +177,10 @@ they do not replace the detailed participant steps.
 
 - **Objective/actions:** Make one SSH and one Telnet dummy login attempt from
   the assigned participant container, using only the credentials in the
-  participant guide. SSH uses port 2222; the tested Telnet client is
-  `curl telnet://10.77.0.10:2223`.
+  participant guide. SSH uses port 2222. For Telnet, stage
+  `exercises/02-ssh-telnet-investigation/telnet-login.pl` into the assigned
+  container and run `perl /tmp/cisf-telnet-login.pl`; the helper handles
+  negotiation and closes after one attempt.
 - **Expected observations:** Cowrie records connection, login, and session
   events. A `cowrie.login.success` is Cowrie's emulated result, not access to
   a real host or account. Telnet may log the dummy password in raw Cowrie
@@ -189,9 +191,10 @@ they do not replace the detailed participant steps.
 - **Instructor verification:** Check the participant's Cowrie events and
   corresponding Suricata alert only. Never display `password` or raw `message`
   fields.
-- **Common errors:** If the Telnet curl client stays open after Cowrie records
-  `cowrie.session.closed`, confirm closure and press Ctrl-C once; do not retry
-  the login. See the [Lab 2 participant exercise](../exercises/02-ssh-telnet-investigation/participant-exercise.md)
+- **Common errors:** If the Telnet helper is missing, stage it into the
+  assigned container from the instructor guide. Avoid interactive curl,
+  which may stay open after the Cowrie session closes. Do not retry the login.
+  See the [Lab 2 participant exercise](../exercises/02-ssh-telnet-investigation/participant-exercise.md)
   and [Lab 2 instructor guide](../exercises/02-ssh-telnet-investigation/instructor-guide.md).
 
 ### Lab 3 — FTP investigation
@@ -218,8 +221,9 @@ they do not replace the detailed participant steps.
 
 - **Objective/actions:** Make one redirect-following HTTP request to
   `10.77.0.10:80`, then one dummy MySQL authentication attempt to
-  `10.77.0.10:3306` using the provided Perl one-shot client. It sends no SQL;
-  no MySQL CLI or package installation is required.
+  `10.77.0.10:3306` using the staged `mysql-login.pl` helper with
+  `perl /tmp/cisf-mysql-login.pl`. It sends no SQL; no MySQL CLI or package
+  installation is required.
 - **Expected observations:** HTTP finishes with status 200 after the root
   redirect (the recorded path may be `/index.html`). The MySQL server rejects
   the dummy login with error 1045 (access denied). This is not a successful
@@ -388,10 +392,11 @@ the distributed dataset.
   Accept a host key only for that expected endpoint; investigate unexpected
   host-key changes with the instructor. Allow up to 30 seconds for logs.
   Cowrie's `cowrie.login.success` is an emulated outcome only.
-- **Telnet curl remains open:** Cowrie may already have logged
-  `cowrie.session.closed` while curl remains active locally. Confirm that
-  event, then press Ctrl-C once. This is a client shutdown behavior; do not
-  repeat the login. A client timeout is not the authentication outcome.
+- **Telnet helper missing or times out:** Stage
+  `exercises/02-ssh-telnet-investigation/telnet-login.pl` into the assigned
+  container. If it times out, verify Cowrie is running and reachable at
+  `10.77.0.10:2223`; do not ask the participant to use interactive curl or
+  repeat the login without checking existing events.
 - **FTP returns 530 / curl exit 67:** This is the expected dummy-login
   rejection when the transcript shows `530`. Do not retry. Keep verbose
   output private because it may contain protocol data.

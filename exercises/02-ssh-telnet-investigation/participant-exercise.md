@@ -78,21 +78,31 @@ shell.
 
 ### 3. Make one Telnet dummy login attempt
 
-The supplied Kali image does not include a `telnet` command. Its installed
-`curl` supports the Telnet protocol; use it as the client:
+The supplied Kali image does not include `telnet`, `nc`, or `ncat`, and the
+interactive `curl` Telnet client may hang. The instructor will place a small
+one-shot Perl client in your assigned container. Run:
 
 ```bash
-curl telnet://10.77.0.10:2223
+perl /tmp/cisf-telnet-login.pl
 ```
 
-At the `login:` prompt, enter `cisf-telnet-lab`. At `Password:`, enter
-`CISF-Dummy-Password-2026`. If Cowrie presents a simulated shell, type `exit`
-to close the session. The password may be logged by Cowrie; never use a real
-password.
+The client negotiates Telnet, submits the exercise-only username
+`cisf-telnet-lab` and dummy password `CISF-Dummy-Password-2026` once, then
+closes the connection. It uses Perl's installed core socket modules and
+connects only to `10.77.0.10:2223`. Cowrie may record the dummy password; never
+use a real password or share raw log fields. The instructor stages this
+client before the exercise; do not install packages or use Docker yourself.
 
-If `curl` is unavailable or reports that Telnet is an unsupported protocol,
-stop and ask the instructor rather than installing software or changing the
-container.
+Expected client output includes:
+
+```text
+Telnet username prompt received; submitted the exercise username.
+Telnet password prompt received; submitted one dummy login attempt.
+Connection closed. Cowrie's recorded login outcome is simulated.
+```
+
+In the tested lab, Cowrie records `cowrie.login.success`; this is an emulated
+honeypot result, not a login to a real system.
 
 ### 4. Review your filtered evidence
 
@@ -159,8 +169,9 @@ Use your command output and only your assigned log excerpt:
   stop and ask the instructor; do not bypass the warning.
 - **SSH or Telnet does not connect:** Check the target and port with the
   instructor. Do not retry credentials or try other hosts.
-- **No Telnet client:** This is expected. Use the tested `curl` Telnet command
-  above; do not install packages in the Kali image.
+- **Telnet client script missing:** Stop and ask the instructor to stage
+  `telnet-login.pl` into your assigned container. Do not fall back to curl,
+  install packages, or use Docker.
 - **No Cowrie or Suricata excerpt yet:** Ask the instructor to verify your
   source IP and allow up to 30 seconds for log events to appear. Do not repeat
   the login attempt unless the instructor authorizes it.

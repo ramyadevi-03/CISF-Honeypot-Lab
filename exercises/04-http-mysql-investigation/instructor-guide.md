@@ -72,13 +72,24 @@ and timestamp rather than counting alerts as independent investigations.
 
 ### MySQL
 
-The Kali image has no `mysql` client. Perl and `IO::Socket::INET` are already
-installed. The participant guide includes a small Perl one-shot protocol
-client. It reads the MySQL protocol v10 greeting, sends a single authentication
-packet using dummy user `cisf-user` and dummy password `wrong`, reads the
-server's response, and verifies MySQL error 1045 (access denied). It sends no
-SQL and requires no package installation. Both Kali containers were tested
-with this exact client.
+The Kali image has no `mysql` client; Perl's core `IO::Socket::INET` module is
+available. Before opening participant terminals, stage the helper into each
+assigned Kali container. For the default two participants:
+
+```bash
+for container in kali-01 kali-02; do
+  docker cp ./exercises/04-http-mysql-investigation/mysql-login.pl \
+    "$container:/tmp/cisf-mysql-login.pl"
+done
+```
+
+For another assignment, replace the container names with the actual Kali
+containers. Participants run `perl /tmp/cisf-mysql-login.pl`. The one-shot
+helper reads the MySQL protocol v10 greeting, sends one authentication packet
+for dummy user `cisf-user` and dummy password `wrong`, reads the server's
+response, and verifies error 1045 (access denied). It sends no SQL and
+requires no package installation. It prints a clear error if the greeting or
+expected rejection is not received.
 
 Do not characterize the MySQL authentication as successful. The observed
 server response is explicit rejection (error 1045), and the OpenCanary event
@@ -237,8 +248,8 @@ during a workshop rather than relying on these sample ports or times.
   final status 200 is expected.
 - **HTTP event path differs from `/`:** OpenCanary can record the redirected
   `/index.html` request. Correlate using source port and time.
-- **No MySQL client:** Expected; use the tested preinstalled Perl command.
-  Do not install packages or connect to a different target.
+- **MySQL helper missing:** Stage `mysql-login.pl` with the `docker cp`
+  command above. Do not install packages or run a long inline client command.
 - **Unexpected MySQL response:** Do not claim success or retry. Ask the
   instructor to check service state and the returned MySQL error.
 - **9003 without 8001:** The TCP connection occurred but no authentication
